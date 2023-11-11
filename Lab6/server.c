@@ -4,82 +4,75 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
-#define PORT 8080
+#define PORT 7000
 #define MAX_CLIENTS 5
 
-int main()
-{
-    int sockfd, new_socket, valread;
-    struct sockaddr_in serv;
-    int opt = 1;
-    int addrlen = sizeof(serv);
+void handle_client(int client_socket) {
+    char message[200];
 
-    // Creating socket file descriptor
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    while (1) {
+        memset(message, 0, sizeof(message));
+        recv(client_socket, message, sizeof(message), 0);
+
+        printf("Client: %s", message);
+
+        if (strcmp(message, "bye\n") == 0) {
+            printf("Client disconnected.\n");
+            break;
+        }
+
+        printf("Server: ");
+        fgets(message, sizeof(message), stdin);
+        send(client_socket, message, strlen(message), 0);
+    }
+
+    close(client_socket);
+}
+
+int main() {
+    int sockfd, client_socket;
+    struct sockaddr_in server_address, client_address;
+    socklen_t addr_size;
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if (sockfd == -1)
     {
         printf("[-]Socket Creation Failed.\n");
         exit(1);
     }
+
     printf("[+]TCP SERVER Socket Created.\n");
 
-    serv.sin_family = AF_INET;
-    serv.sin_port = htons(PORT);
-    serv.sin_addr.s_addr = INADDR_ANY;
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(PORT);
+    server_address.sin_addr.s_addr = INADDR_ANY;
 
-    // Forcefully attaching socket to the port 8080
-    if (bind(sockfd, (struct sockaddr *)&serv, sizeof(serv)) < 0)
+    int b = bind(sockfd, (struct sockaddr*)&server_address, sizeof(server_address));
+    if (b == -1)
     {
         printf("[-]Bind Failed.\n");
         exit(1);
     }
 
     printf("[+]Bind to the Port Number: %d\n", PORT);
-    if (listen(sockfd, MAX_CLIENTS) < 0)
-    {
-        perror("listen");
-        exit(EXIT_FAILURE);
+
+    listen(sockfd, MAX_CLIENTS);
+
+    printf("[+]Server listening on port %d...\n", PORT);
+
+    while (1) {
+        addr_size = sizeof(client_address);
+        client_socket = accept(sockfd, (struct sockaddr*)&client_address, &addr_size);
+
+        printf("[+]Connection accepted from Client [%s:%d]\n",
+               inet_ntoa(client_address.sin_addr),
+               ntohs(client_address.sin_port));
+
+        handle_client(client_socket);
     }
-    printf("Listening...\n");
 
-    while (1)
-    {
-        if ((new_socket = accept(sockfd, (struct sockaddr *)&serv,
-                                 (socklen_t *)&addrlen)) < 0)
-        {
-            printf("[-]Client Acceptance Failed.\n");
-            exit(1);
-        }
-
-        int child_pid = fork();
-
-        if (child_pid < 0)
-        {
-            printf("[-]Fort Failed.\n");
-            exit(1);
-        }
-
-        if (child_pid == 0)
-        {                  // This is the child process
-            close(sockfd); // Child doesn't need the listener
-
-            // Handle communication with the client here
-            while (1)
-            {
-                char buffer[1024] = {0};
-                valread = read(new_socket, buffer, sizeof(buffer));
-                printf("Received: %s\n", buffer);
-                const char *response = "Hello from server!";
-                send(new_socket, response, strlen(response), 0);
-                printf("Response sent\n");
-            }
-            close(new_socket); // Close the connection in the child process
-            exit(0);           // Exit the child process
-        }
-        else
-        {                      // This is the parent process
-            close(new_socket); // Parent doesn't need the new socket
-        }
-    }
+    close(sockfd);
 
     return 0;
 }

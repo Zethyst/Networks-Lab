@@ -1,99 +1,78 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
-int main(int argc, char *argv[])
-{
-    if (argc != 3)
-    {
-        printf("Usage in this form: %s <ip_address> <port>\n", argv[0]);
-        return 1;
+#define PORT 7000
+#define MAX_CLIENTS 5
+
+void handle_client(int client_socket) {
+    char message[200];
+
+    while (1) {
+        memset(message, 0, sizeof(message));
+        recv(client_socket, message, sizeof(message), 0);
+
+        printf("Client: %s", message);
+
+        if (strcmp(message, "bye\n") == 0) {
+            printf("Client disconnected.\n");
+            break;
+        }
+
+        printf("Server: ");
+        fgets(message, sizeof(message), stdin);
+        send(client_socket, message, strlen(message), 0);
     }
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    close(client_socket);
+}
+
+int main() {
+    int sockfd, client_socket;
+    struct sockaddr_in server_address, client_address;
+    socklen_t addr_size;
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
     if (sockfd == -1)
     {
         printf("[-]Socket Creation Failed.\n");
         exit(1);
     }
+
     printf("[+]TCP SERVER Socket Created.\n");
-    char msg[200];
-    char receivedMsg[200];
-    char sentMsg[200];
-    int port = atoi(argv[2]); //string to integer
 
-    struct sockaddr_in serv, clint;
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(PORT);
+    server_address.sin_addr.s_addr = INADDR_ANY;
 
-    serv.sin_family = AF_INET;
-    serv.sin_port = htons(port);
-    serv.sin_addr.s_addr = inet_addr(argv[1]);
-
-    int b = bind(sockfd, (struct sockaddr *)&serv, sizeof(serv));
+    int b = bind(sockfd, (struct sockaddr*)&server_address, sizeof(server_address));
     if (b == -1)
     {
         printf("[-]Bind Failed.\n");
         exit(1);
     }
 
-    printf("[+]Bind to the Port Number: %d\n", port);
-    listen(sockfd, 1);
-    printf("Listening...\n");
+    printf("[+]Bind to the Port Number: %d\n", PORT);
 
-    while (1)
-    {
-        int size = sizeof(clint);
-        int clintfd = accept(sockfd, (struct sockaddr *)&clint, &size);
-        if (clintfd == -1)
-        {
-            printf("[-]Client Acceptance Failed.\n");
-            exit(1);
-        }
-        printf("[+]Client Connected.\n");
+    listen(sockfd, MAX_CLIENTS);
 
-        while (1)
-        {
-            int num_bytes = recv(clintfd, receivedMsg, sizeof(receivedMsg), 0);
-            if (num_bytes <= 0)
-            {
-                printf("[-]Client Disconnected.\n");
-                break;
-            }
+    printf("[+]Server listening on port %d...\n", PORT);
 
-            receivedMsg[num_bytes] = '\0';
-            printf("Client (IP: %s, Port: %s): %s\n", inet_ntoa(clint.sin_addr), argv[2], receivedMsg);
-            // printf("Client: %s\n", msg);
+    while (1) {
+        addr_size = sizeof(client_address);
+        client_socket = accept(sockfd, (struct sockaddr*)&client_address, &addr_size);
 
-            if (strcmp(receivedMsg, "exit") == 0)
-            {
-                printf("[+]Closing connection...\n");
-                break;
-            }
-            
-        printf("Enter a message for the client: ");
-        fgets(sentMsg, sizeof(sentMsg), stdin);
+        printf("[+]Connection accepted from Client [%s:%d]\n",
+               inet_ntoa(client_address.sin_addr),
+               ntohs(client_address.sin_port));
 
-        if (strcmp(receivedMsg, "EXIT\n") == 0) {
-            printf("[+]Client requested to close the connection...\n");
-            const char *closingMessage = "Server: Connection closed by request.";
-            send(clintfd, closingMessage, strlen(closingMessage), 0);
-            break;
-        }
-        
-        send(clintfd, sentMsg, strlen(sentMsg), 0);
-
-            // strcpy(msg, "Hello, This is server.");
-            // strcpy(msg, "This is server. Your message was received successfully!");
-            // send(clintfd, msg, strlen(msg), 0);
-        }
-
-        // close(clintfd);
+        handle_client(client_socket);
     }
 
     close(sockfd);
+
     return 0;
 }

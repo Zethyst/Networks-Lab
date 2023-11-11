@@ -1,66 +1,49 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
-int main(int argc, char *argv[])
-{
-    if (argc != 3)
-    {
-        printf("Usage: %s <ip_address> <port>\n", argv[0]);
-        return 1;
+#define PORT 7000
+#define MAX_MESSAGE_SIZE 200
+
+int main() {
+    int clientfd;
+    struct sockaddr_in server_address;
+    char message[MAX_MESSAGE_SIZE];
+
+    clientfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    // Configure server address
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(PORT);
+    server_address.sin_addr.s_addr = INADDR_ANY;
+
+    if (connect(clientfd, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
+        perror("[-]Connection failed");
+        exit(EXIT_FAILURE);
     }
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1)
-    {
-        printf("[-]Socket Creation Failed.\n");
-        exit(1);
-    }
-    printf("[+]TCP CLIENT Socket Created.\n");
-    char msg[200];
-    int port = atoi(argv[2]);
+    printf("[+]Connected to the server on port %d...\n", PORT);
 
-    struct sockaddr_in serv;
+    while (1) {
+        printf("Client: ");
+        fgets(message, sizeof(message), stdin);
 
-    serv.sin_family = AF_INET;
-    serv.sin_port = htons(port);
-    serv.sin_addr.s_addr = inet_addr(argv[1]);
+        send(clientfd, message, strlen(message), 0);
 
-    if (connect(sockfd, (struct sockaddr *)&serv, sizeof(serv)) == -1)
-    {
-        printf("[-]Connection Failed.\n");
-        exit(1);
-    }
-    printf("[+]Connected to Server.\n");
-
-    while (1)
-    {
-        printf("Enter a message: ");
-        fgets(msg, sizeof(msg), stdin);
-        send(sockfd, msg, strlen(msg), 0);
-
-        if (strcmp(msg, "exit\n") == 0)
-        {
-            printf("[+]Exiting...\n");
+        if (strcmp(message, "bye\n") == 0) {
+            printf("[-]Disconnected from the server.\n");
             break;
         }
 
-        int num_bytes = recv(sockfd, msg, sizeof(msg), 0);
-        if (num_bytes <= 0)
-        {
-            printf("[-]Server disconnected.\n");
-            break;
-        }
+        memset(message, 0, sizeof(message));
+        recv(clientfd, message, sizeof(message), 0);
 
-        msg[num_bytes] = '\0';
-        printf("Server: %s\n", msg);
+        printf("Server: %s", message);
     }
 
-    close(sockfd);
+    close(clientfd);
+
     return 0;
 }
