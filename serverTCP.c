@@ -20,6 +20,7 @@ int main()
         exit(1);
     }
     printf("[+]TCP SERVER Socket Created.\n");
+
     struct sockaddr_in serv, clint;
 
     serv.sin_family = AF_INET;

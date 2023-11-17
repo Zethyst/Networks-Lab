@@ -12,7 +12,7 @@ int main()
 {
     serv.sin_family = AF_INET;
     serv.sin_port = htons(5000);
-    serv.sin_addr.s_addr = INADDR_ANY;
+    serv.sin_addr.s_addr = INADDR_ANY; //inet_addr("127.0.0.1")
 
     // adress family- ip4 or ip6 or what address -- 
     // AF_INET for ipv4

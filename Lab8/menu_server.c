@@ -17,7 +17,7 @@ struct Product
 };
 
 // Server-side function using fork
-void *serverFork(void *arg);
+void serverFork(void);
 
 // Server-side function using thread
 void *serverThread(void *arg);
@@ -38,11 +38,8 @@ int main()
         switch (choice)
         {
         case 1:
-            // Using fork()
             printf("Using fork()\n");
-            pthread_t forkThreadID;
-            pthread_create(&forkThreadID, NULL, serverFork, NULL);
-            pthread_join(forkThreadID, NULL);
+            serverFork();
             break;
 
         case 2:
@@ -67,7 +64,7 @@ int main()
 }
 
 // Server-side function using fork
-void *serverFork(void *arg)
+void serverFork()
 {
     int sockfd, new_socket, valread;
     struct sockaddr_in serv, clint;
@@ -107,74 +104,83 @@ void *serverFork(void *arg)
             printf("[-]Client Acceptance Failed.\n");
             exit(1);
         }
-        printf("[+]Client Connected.\n");
 
-        while (1)
+        int child_pid = fork();
+
+        if (child_pid < 0)
         {
-            int requestedProductNumber;
-            // Receiving product number from the client
-            valread = recv(clintfd, &requestedProductNumber, sizeof(int), 0);
-
-            if (valread == 0)
-            {
-                // Client disconnected
-                printf("Client disconnected.\n");
-                break;
-            }
-            else if (valread == -1)
-            {
-                perror("Error receiving product number");
-                break;
-            }
-
-            struct Product requestedProduct = {
-                .productNumber = requestedProductNumber,
-            };
-            switch (requestedProductNumber)
-            {
-            case 101:
-                strcpy(requestedProduct.productName, "Laptop");
-                requestedProduct.productPrice = 899.99;
-                requestedProduct.quantityInStock = 15;
-                break;
-
-            case 102:
-                strcpy(requestedProduct.productName, "Smartphone");
-                requestedProduct.productPrice = 499.99;
-                requestedProduct.quantityInStock = 30;
-                break;
-
-            case 103:
-                strcpy(requestedProduct.productName, "Headphones");
-                requestedProduct.productPrice = 79.99;
-                requestedProduct.quantityInStock = 50;
-                break;
-
-            case 104:
-                strcpy(requestedProduct.productName, "Watch");
-                requestedProduct.productPrice = 49.99;
-                requestedProduct.quantityInStock = 70;
-                break;
-
-            default:
-                printf("[-] Product Not Found\n");
-                // If the product is not found, create a default product with productNumber = -1
-                requestedProduct.productNumber = -1;
-                break;
-            }
-
-            // Sending the product details to the client
-            send(clintfd, &requestedProduct, sizeof(struct Product), 0);
+            printf("[-]Fort Failed.\n");
+            exit(1);
         }
 
-        close(clintfd);
+        if (child_pid == 0)
+        {
+            close(sockfd);
+
+            printf("[+]Client Connected.\n");
+
+            while (1)
+            {
+                int requestedProductNumber;
+                // Receiving product number from the client
+                recv(clintfd, &requestedProductNumber, sizeof(int), 0);
+
+                // struct Product requestedProduct = {
+                //     .productNumber = requestedProductNumber,
+                // };
+                struct Product requestedProduct;
+
+                requestedProduct.productNumber = requestedProductNumber;
+
+                switch (requestedProductNumber)
+                {
+                case 101:
+                    strcpy(requestedProduct.productName, "Laptop");
+                    requestedProduct.productPrice = 899.99;
+                    requestedProduct.quantityInStock = 15;
+                    break;
+
+                case 102:
+                    strcpy(requestedProduct.productName, "Smartphone");
+                    requestedProduct.productPrice = 499.99;
+                    requestedProduct.quantityInStock = 30;
+                    break;
+
+                case 103:
+                    strcpy(requestedProduct.productName, "Headphones");
+                    requestedProduct.productPrice = 79.99;
+                    requestedProduct.quantityInStock = 50;
+                    break;
+
+                case 104:
+                    strcpy(requestedProduct.productName, "Watch");
+                    requestedProduct.productPrice = 49.99;
+                    requestedProduct.quantityInStock = 70;
+                    break;
+
+                default:
+                    printf("[-] Product Not Found\n");
+                    // If the product is not found, create a default product with productNumber = -1
+                    requestedProduct.productNumber = -1;
+                    break;
+                }
+
+                // Sending the product details to the client
+                send(clintfd, &requestedProduct, sizeof(struct Product), 0);
+            }
+
+            close(clintfd);
+            exit(0);
+        }
+        else
+        {
+            close(clintfd);
+        }
     }
 
     close(sockfd);
-    return NULL;
 }
 
-// Server-side function using thread
 // Server-side function using thread
 void *serverThread(void *arg)
 {
@@ -220,22 +226,12 @@ void *serverThread(void *arg)
     {
         int requestedProductNumber;
         // Receiving product number from the client
-        valread = recv(clintfd, &requestedProductNumber, sizeof(struct Product), 0);
-        if (valread == 0)
-        {
-            // Client disconnected
-            printf("Client disconnected.\n");
-            break;
-        }
-        else if (valread == -1)
-        {
-            perror("Error receiving product number");
-            break;
-        }
+        recv(clintfd, &requestedProductNumber, sizeof(struct Product), 0);
 
-        struct Product requestedProduct = {
-            .productNumber = requestedProductNumber,
-        };
+        struct Product requestedProduct;
+
+        requestedProduct.productNumber = requestedProductNumber;
+
         switch (requestedProductNumber)
         {
         case 101:
